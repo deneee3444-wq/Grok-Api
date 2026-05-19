@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from core import Grok
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return jsonify({"status": "çalışıyor"})
+    return render_template("index.html")
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -13,13 +13,15 @@ def ask():
     message = data.get("message")
     model = data.get("model", "grok-3-fast")
     extra_data = data.get("extra_data", None)
+    proxy = data.get("proxy", None)
 
     if not message:
         return jsonify({"error": "message zorunlu"}), 400
 
     try:
-        response = Grok(model).start_convo(message, extra_data=extra_data)
+        response = Grok(model, proxy).start_convo(message, extra_data=extra_data)
         return jsonify({
+            "status": "success",
             "response": response["response"],
             "extra_data": response["extra_data"]
         })
