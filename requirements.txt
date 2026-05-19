@@ -1,6 +1,6 @@
 flask
 gunicorn
 curl_cffi
-coincurve
+coincurve==20.0.0
 beautifulsoup4
 colorama
