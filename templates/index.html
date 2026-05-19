@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok Chat</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 750px;
+      height: 90vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 22px;
+      color: #aaa;
+      letter-spacing: 1px;
+    }
+
+    h1 span { color: #fff; }
+
+    .model-select {
+      display: flex;
+      justify-content: center;
+    }
+
+    select {
+      background: #1e1e1e;
+      color: #fff;
+      border: 1px solid #333;
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .chat-box {
+      flex: 1;
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border: 1px solid #2a2a2a;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      font-size: 15px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .user {
+      align-self: flex-end;
+      background: #2f2f2f;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .grok {
+      align-self: flex-start;
+      background: #1f1f2e;
+      color: #d0d0ff;
+      border-bottom-left-radius: 4px;
+      border: 1px solid #2e2e4a;
+    }
+
+    .thinking {
+      align-self: flex-start;
+      color: #555;
+      font-size: 14px;
+      font-style: italic;
+      padding-left: 4px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    textarea {
+      flex: 1;
+      background: #1e1e1e;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      height: 52px;
+      line-height: 1.4;
+    }
+
+    textarea:focus { border-color: #555; }
+
+    button {
+      background: #fff;
+      color: #000;
+      border: none;
+      padding: 0 20px;
+      border-radius: 12px;
+      font-size: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #ccc; }
+    button:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+    .chat-box::-webkit-scrollbar { width: 5px; }
+    .chat-box::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span>Grok</span> Chat</h1>
+
+    <div class="model-select">
+      <select id="model">
+        <option value="grok-3-fast">grok-3-fast</option>
+        <option value="grok-3-auto">grok-3-auto</option>
+        <option value="grok-4">grok-4</option>
+        <option value="grok-4-mini-thinking-tahoe">grok-4-mini-thinking</option>
+      </select>
+    </div>
+
+    <div class="chat-box" id="chatBox">
+      <div class="message grok">Merhaba! Sana nasıl yardımcı olabilirim?</div>
+    </div>
+
+    <div class="input-row">
+      <textarea id="input" placeholder="Mesajını yaz..." rows="1"
+        onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendMessage();}">
+      </textarea>
+      <button id="sendBtn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+
+  <script>
+    let extraData = null;
+
+    async function sendMessage() {
+      const input = document.getElementById("input");
+      const message = input.value.trim();
+      if (!message) return;
+
+      const model = document.getElementById("model").value;
+      const chatBox = document.getElementById("chatBox");
+      const sendBtn = document.getElementById("sendBtn");
+
+      // Kullanıcı mesajını ekle
+      chatBox.innerHTML += `<div class="message user">${escapeHtml(message)}</div>`;
+      input.value = "";
+      sendBtn.disabled = true;
+
+      // "Düşünüyor..." göster
+      const thinking = document.createElement("div");
+      thinking.className = "thinking";
+      thinking.id = "thinking";
+      thinking.textContent = "Grok düşünüyor...";
+      chatBox.appendChild(thinking);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, model, extra_data: extraData })
+        });
+
+        const data = await res.json();
+
+        document.getElementById("thinking")?.remove();
+
+        if (data.error) {
+          chatBox.innerHTML += `<div class="message grok" style="color:#ff6b6b;">Hata: ${escapeHtml(data.error)}</div>`;
+        } else {
+          extraData = data.extra_data;
+          chatBox.innerHTML += `<div class="message grok">${escapeHtml(data.response)}</div>`;
+        }
+      } catch (e) {
+        document.getElementById("thinking")?.remove();
+        chatBox.innerHTML += `<div class="message grok" style="color:#ff6b6b;">Bağlantı hatası.</div>`;
+      }
+
+      sendBtn.disabled = false;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      return text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+  </script>
+</body>
+</html>
